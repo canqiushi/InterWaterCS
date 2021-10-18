@@ -1,0 +1,81 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;  //cal (r g b)  out (a)
+StructuredBuffer<float> Input;  //
+uint rtWidth,rtHeight,inputWidth,inputHeight;
+uint curIndex;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{    
+    // float prev = tex2D(_PrevTex, i.uv).r * 2 - 1;
+    // float prevL = tex2D(_PrevTex, half2(i.uv.x - _Stride.x, i.uv.y)).r * 2 - 1;
+    // float prevR = tex2D(_PrevTex, half2(i.uv.x + _Stride.x, i.uv.y)).r * 2 - 1;
+    // float prevT = tex2D(_PrevTex, half2(i.uv.x, i.uv.y + _Stride.y)).r * 2 - 1;
+    // float prevB = tex2D(_PrevTex, half2(i.uv.x, i.uv.y - _Stride.y)).r * 2 - 1;
+    // float value = prev * 2 + (prevL + prevR + prevT + prevB - prev * 4) * _Param.x - (tex2D(_PrevPrevTex, i.uv).r * 2 - 1);
+    // value += tex2D(_MainTex, i.uv).r * 2 - 1;
+    // value *= _Param.y;
+    
+    //source
+    float4 src = Result[id.xy];
+    
+    //uv right left top bottom   
+    uint rx = min(id.x + 1, rtWidth-1);
+    uint lx = max(id.x - 1, 1);
+    uint ty = min(id.y + 1, rtHeight-1);
+    uint by = max(id.y - 1, 1);
+
+    //cal input
+    float ratex = (float)inputWidth / (float)rtWidth; 
+    uint u = id.x * ratex;
+    float ratey = (float)inputHeight / (float)rtHeight;
+    uint v = id.y * ratey;
+    uint index = u + v * inputWidth;
+
+    //loop
+    if(curIndex == 0) //pre b prepre g => cur a => r
+    {
+        float prev = Result[id.xy].b * 2 - 1;
+        float prevL = Result[uint2(lx,id.y)].b * 2 - 1;
+        float prevR = Result[uint2(rx,id.y)].b * 2 - 1;
+        float prevT = Result[uint2(id.x,ty)].b * 2 - 1;
+        float prevB = Result[uint2(id.x,by)].b * 2 - 1;
+        float value = prev * 2 + (prevL + prevR + prevT + prevB - prev * 4) * 0.25 - (Result[id.xy].g * 2 - 1);
+        value += Input[index] * 2 - 1;
+        value *= 0.98;
+        value = (value + 1) * 0.5;        
+        Result[id.xy] = float4(value,src.g,src.b,value);        
+    }
+    
+    if(curIndex == 1) //pre a prepre b => cur g => r
+    {
+        float prev = Result[id.xy].a * 2 - 1;
+        float prevL = Result[uint2(lx,id.y)].a * 2 - 1;
+        float prevR = Result[uint2(rx,id.y)].a * 2 - 1;
+        float prevT = Result[uint2(id.x,ty)].a * 2 - 1;
+        float prevB = Result[uint2(id.x,by)].a * 2 - 1;
+        float value = prev * 2 + (prevL + prevR + prevT + prevB - prev * 4) * 0.25 - (Result[id.xy].b * 2 - 1);
+        value += Input[index] * 2 - 1;
+        value *= 0.98;
+        value = (value + 1) * 0.5;        
+        Result[id.xy] = float4(value,value,src.b,src.a);
+    }
+    
+    if(curIndex == 2) //pre g prepre a => cur b => r
+    {
+        float prev = Result[id.xy].g * 2 - 1;
+        float prevL = Result[uint2(lx,id.y)].g * 2 - 1;
+        float prevR = Result[uint2(rx,id.y)].g * 2 - 1;
+        float prevT = Result[uint2(id.x,ty)].g * 2 - 1;
+        float prevB = Result[uint2(id.x,by)].g * 2 - 1;
+        float value = prev * 2 + (prevL + prevR + prevT + prevB - prev * 4) * 0.25 - (Result[id.xy].a * 2 - 1);
+        value += Input[index] * 2 - 1;
+        value *= 0.98;
+        value = (value + 1) * 0.5;
+        Result[id.xy] = float4(value,src.g,value,src.a);
+    }
+}
